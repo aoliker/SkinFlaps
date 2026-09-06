@@ -365,15 +365,73 @@ void bccTetScene::initPdPhysics()
 #endif
 }
 
+void bccTetScene::generateFiberField()
+{  // rule-based helical myocardial fiber field (endo +60 deg -> epi -60 deg about the long axis).
+   // Computed in grid space (uniformly scaled from material space, so directions are faithful).
+   // See CARDIAC.md for the physiology this approximates.
+	int n = _vnTets.tetNumber();
+	if (n < 1)
+		return;
+	std::vector<Vec3f> c(n);
+	Vec3f mean(0.f, 0.f, 0.f);
+	for (int i = 0; i < n; ++i) {
+		const bccTetCentroid& tc = _vnTets.tetCentroid(i);
+		c[i].set((float)tc[0] * 0.5f, (float)tc[1] * 0.5f, (float)tc[2] * 0.5f);  // stored centroid is doubled
+		mean += c[i];
+	}
+	mean *= 1.0f / n;
+	// covariance (xx,yy,zz,xy,xz,yz) -> dominant eigenvector = long (apex-base) axis, by power iteration
+	double cov[6] = { 0,0,0,0,0,0 };
+	for (int i = 0; i < n; ++i) {
+		Vec3f d = c[i] - mean;
+		cov[0] += (double)d.X * d.X; cov[1] += (double)d.Y * d.Y; cov[2] += (double)d.Z * d.Z;
+		cov[3] += (double)d.X * d.Y; cov[4] += (double)d.X * d.Z; cov[5] += (double)d.Y * d.Z;
+	}
+	Vec3f L(0.f, 0.f, 1.f);
+	for (int it = 0; it < 64; ++it) {
+		Vec3f y((float)(cov[0] * L.X + cov[3] * L.Y + cov[4] * L.Z),
+				(float)(cov[3] * L.X + cov[1] * L.Y + cov[5] * L.Z),
+				(float)(cov[4] * L.X + cov[5] * L.Y + cov[2] * L.Z));
+		if (y.length() < 1e-12f) break;
+		y.normalize(); L = y;
+	}
+	// transmural depth normaliser: max radial distance from the long axis
+	std::vector<float> radial(n); std::vector<Vec3f> circ(n);
+	float maxR = 1e-6f;
+	for (int i = 0; i < n; ++i) {
+		Vec3f d = c[i] - mean;
+		float along = d * L;                 // dot
+		Vec3f r = d - L * along;             // radial component
+		float rl = r.length();
+		radial[i] = rl;
+		Vec3f rhat;
+		if (rl > 1e-6f) rhat = r / rl;
+		else { Vec3f t = (fabs(L.X) < 0.9f) ? Vec3f(1.f, 0.f, 0.f) : Vec3f(0.f, 1.f, 0.f); rhat = t - L * (t * L); rhat.normalize(); }
+		circ[i] = L ^ rhat;                  // circumferential = L x rhat
+		if (rl > maxR) maxR = rl;
+	}
+	std::vector<float> fx(n), fy(n), fz(n);
+	const float deg2rad = 3.14159265f / 180.0f;
+	for (int i = 0; i < n; ++i) {
+		float t = radial[i] / maxR; if (t > 1.f) t = 1.f;      // 0 near axis (endo-ish) -> 1 outer (epi)
+		float alpha = (1.0f - 2.0f * t) * 60.0f * deg2rad;     // +60 deg endo -> -60 deg epi
+		Vec3f f = circ[i] * cosf(alpha) + L * sinf(alpha);
+		if (f.length() < 1e-9f) f = Vec3f(1.f, 0.f, 0.f);
+		f.normalize();
+		fx[i] = f.X; fy[i] = f.Y; fz[i] = f.Z;
+	}
+	_ptp.setFiberField(fx, fy, fz);
+}
+
 void bccTetScene::startBeating()
 {  // stands the solver up if no hook/suture has yet; then activation oscillates in updatePhysics()
 	if (_vnTets.empty())
 		return;
-	if (!_forcesApplied) {
+	generateFiberField();  // must precede the (re)init so the fiber lands in the kernel's blocked arrays
+	if (!_forcesApplied)
 		_forcesApplied = true;
-		initPdPhysics();
-		_tetsModified = true;
-	}
+	initPdPhysics();       // full init - scatters the fiber field and (re)builds the solver
+	_tetsModified = true;
 	_beatFrame = 0;
 	_beating = true;
 }
@@ -391,8 +449,16 @@ void bccTetScene::updatePhysics()
 	if (_tetsModified || _forcesApplied) {
 		if (_beating) {  // runs on the physics task thread, before the solve - no race with it
 			++_beatFrame;
+			// Asymmetric cardiac twitch (CARDIAC.md): fast systolic rise to peak contraction,
+			// slower diastolic relaxation, then diastasis at rest. Fractions of one cycle.
 			float phase = float(_beatFrame % _beatPeriod) / _beatPeriod;
-			float lambda = 1.f - _beatAmplitude * 0.5f * (1.f - cosf(phase * 6.2831853f));
+			const float riseFrac = 0.18f;   // ~150ms / 800ms rise to peak
+			const float fallFrac = 0.34f;   // relaxation slower than contraction
+			float contract;                 // 0 = relaxed, 1 = peak
+			if (phase < riseFrac) { float s = phase / riseFrac; contract = s * s * (3.f - 2.f * s); }
+			else if (phase < riseFrac + fallFrac) { float s = (phase - riseFrac) / fallFrac; contract = 1.f - s * s * (3.f - 2.f * s); }
+			else contract = 0.f;            // diastole / filling
+			float lambda = 1.f - _beatAmplitude * contract;
 			_ptp.setUniformActivation(lambda);
 		}
 		_tetCol.findSoftCollisionPairs();

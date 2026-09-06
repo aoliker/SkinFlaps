@@ -9,4 +9,7 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
                const T_DATA &strainMin,
                const T_DATA &strainMax,
                const T_DATA &activation,
+               const T_DATA &fiberX,
+               const T_DATA &fiberY,
+               const T_DATA &fiberZ,
                T_DATA (&f_Blocked)[4][3]);

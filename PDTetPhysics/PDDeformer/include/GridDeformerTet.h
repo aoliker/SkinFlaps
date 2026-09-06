@@ -78,6 +78,7 @@ namespace PhysBAM {
         std::vector<T> m_rangeMin;
         std::vector<T> m_rangeMax;
         std::vector<T> m_activation;  // per-tet active-contraction scale on the projection target; empty or 1 = passive
+        std::vector<T> m_fiberX, m_fiberY, m_fiberZ;  // per-tet material-space unit fiber; empty = no fiber (no active contraction)
 
         std::vector<ElementFlag> m_elementFlags;
         std::vector<T> m_elementRestVolume;
@@ -113,6 +114,9 @@ namespace PhysBAM {
 
         BlockedScalarType m_reshapeUncollisionActivation = nullptr;
         BlockedScalarType m_reshapeCollisionActivation = nullptr;
+
+        BlockedScalarType m_reshapeUncollisionFiberX = nullptr, m_reshapeUncollisionFiberY = nullptr, m_reshapeUncollisionFiberZ = nullptr;
+        BlockedScalarType m_reshapeCollisionFiberX = nullptr, m_reshapeCollisionFiberY = nullptr, m_reshapeCollisionFiberZ = nullptr;
 
         // auxilary structure
         std::vector<int> m_reshapeUncollisionIndicesOffsets;
@@ -166,6 +170,7 @@ namespace PhysBAM {
         void deallocateAuxiliaryStructures();
         void initializeElementFlags();
         void setUniformActivation(const T a);  // per-frame safe: writes the blocked arrays directly, no reinit
+        void setFiberField(const T* fx, const T* fy, const T* fz, size_t n);  // static per-tet fiber; takes effect at next full init
     };
 
 } // namespace PhysBAM

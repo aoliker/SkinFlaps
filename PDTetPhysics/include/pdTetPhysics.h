@@ -236,6 +236,15 @@ public:
 		if (m_deformerInited)
 			m_solver.setUniformActivation(a);
 	}
+	// Static per-tet material-space unit fiber field (fiber-directed contraction). Set before the
+	// next initializePhysics(); forces a full re-init so the blocked kernel arrays are rebuilt.
+	inline void setFiberField(const std::vector<float>& fx, const std::vector<float>& fy, const std::vector<float>& fz) {
+		if (!m_deformerInited)
+			throw std::logic_error("need to create tet structure before setting fiber field");
+		m_solver.setFiberField(fx.data(), fy.data(), fz.data(), fx.size());
+		m_solverInited = false;  // fiber lands in the blocked arrays only on a full init
+	}
+	inline size_t tetCount() { return m_solver.elementCount(); }
 	public:
 
 	inline void inputCollisionProxies(const std::vector<int> &tets, const std::vector<std::array<float, 3> > &weights) {

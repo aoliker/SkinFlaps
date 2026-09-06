@@ -85,6 +85,13 @@ namespace PhysBAM {
 		m_reshapeUncollisionActivation = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
 		m_reshapeCollisionActivation = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
 
+		m_reshapeUncollisionFiberX = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeCollisionFiberX = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeUncollisionFiberY = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeCollisionFiberY = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeUncollisionFiberZ = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeCollisionFiberZ = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
+
 #else
 
 		m_reshapeUncollisionX = reinterpret_cast<BlockedShapeMatrixType>(aligned_alloc(Alignment, m_nUncollisionBlocks*BlockWidth*(d + 1)*d * sizeof(T)));
@@ -110,15 +117,28 @@ namespace PhysBAM {
 
 		m_reshapeUncollisionActivation = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
 		m_reshapeCollisionActivation = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
+
+		m_reshapeUncollisionFiberX = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeCollisionFiberX = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeUncollisionFiberY = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeCollisionFiberY = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeUncollisionFiberZ = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeCollisionFiberZ = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
 #endif
 		if (m_reshapeUncollisionX == nullptr || m_reshapeCollisionX == nullptr ||
 			m_reshapeUncollisionGradientMatrix == nullptr || m_reshapeCollisionGradientMatrix == nullptr ||
 			m_reshapeUncollisionElementRestVolume == nullptr || m_reshapeCollisionElementRestVolume == nullptr)
 			throw std::logic_error("fail to allocate memory for m_reshapeX");
 
-		// default activation = 1 (passive) everywhere, padding lanes included
-		for (int b = 0; b < m_nUncollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeUncollisionActivation[b][e] = (T)1;
-		for (int b = 0; b < m_nCollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeCollisionActivation[b][e] = (T)1;
+		// default activation = 1 (passive), fiber = 0 (no active contraction) everywhere, padding included
+		for (int b = 0; b < m_nUncollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) {
+			m_reshapeUncollisionActivation[b][e] = (T)1;
+			m_reshapeUncollisionFiberX[b][e] = (T)0; m_reshapeUncollisionFiberY[b][e] = (T)0; m_reshapeUncollisionFiberZ[b][e] = (T)0;
+		}
+		for (int b = 0; b < m_nCollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) {
+			m_reshapeCollisionActivation[b][e] = (T)1;
+			m_reshapeCollisionFiberX[b][e] = (T)0; m_reshapeCollisionFiberY[b][e] = (T)0; m_reshapeCollisionFiberZ[b][e] = (T)0;
+		}
 
 		// initialize reshaped data
 		for (int e = 0, numOfUncollision = 0, numOfCollision = 0; e < m_elements.size(); e++) {
@@ -137,6 +157,11 @@ namespace PhysBAM {
 				m_reshapeUncollisionRangeMin[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_rangeMin[e];
 				m_reshapeUncollisionRangeMax[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_rangeMax[e];
 				m_reshapeUncollisionActivation[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = e < (int)m_activation.size() ? m_activation[e] : (T)1;
+				if (e < (int)m_fiberX.size()) {
+					m_reshapeUncollisionFiberX[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_fiberX[e];
+					m_reshapeUncollisionFiberY[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_fiberY[e];
+					m_reshapeUncollisionFiberZ[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_fiberZ[e];
+				}
 
 				numOfUncollision++;
 			}
@@ -155,6 +180,11 @@ namespace PhysBAM {
 				m_reshapeCollisionRangeMax[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_rangeMax[e];
 				m_reshapeCollisionRangeMin[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_rangeMin[e];
 				m_reshapeCollisionActivation[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = e < (int)m_activation.size() ? m_activation[e] : (T)1;
+				if (e < (int)m_fiberX.size()) {
+					m_reshapeCollisionFiberX[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_fiberX[e];
+					m_reshapeCollisionFiberY[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_fiberY[e];
+					m_reshapeCollisionFiberZ[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_fiberZ[e];
+				}
 				numOfCollision++;
 			}
 			else if(m_elementFlags[e] != ElementFlag::inActive) throw std::logic_error("elements must be inActive, unCollisionEl or CollisionEl");
@@ -430,6 +460,9 @@ namespace PhysBAM {
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionRangeMin[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionRangeMax[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionActivation[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionFiberX[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionFiberY[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionFiberZ[be][ee]),
 							reinterpret_cast<T(&)[d + 1][d][BlockWidth]>(reshapeUncollisionf[be][0][0][ee]));
 				}
 
@@ -469,6 +502,9 @@ namespace PhysBAM {
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionRangeMin[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionRangeMax[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionActivation[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionFiberX[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionFiberY[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionFiberZ[be][ee]),
 							reinterpret_cast<T(&)[d + 1][d][BlockWidth]>(reshapeCollisionf[be][0][0][ee]));
 				}
 
@@ -508,6 +544,12 @@ namespace PhysBAM {
 		if (m_reshapeCollisionRangeMax) _aligned_free(m_reshapeCollisionRangeMax);
 		if (m_reshapeUncollisionActivation) _aligned_free(m_reshapeUncollisionActivation);
 		if (m_reshapeCollisionActivation) _aligned_free(m_reshapeCollisionActivation);
+		if (m_reshapeUncollisionFiberX) _aligned_free(m_reshapeUncollisionFiberX);
+		if (m_reshapeCollisionFiberX) _aligned_free(m_reshapeCollisionFiberX);
+		if (m_reshapeUncollisionFiberY) _aligned_free(m_reshapeUncollisionFiberY);
+		if (m_reshapeCollisionFiberY) _aligned_free(m_reshapeCollisionFiberY);
+		if (m_reshapeUncollisionFiberZ) _aligned_free(m_reshapeUncollisionFiberZ);
+		if (m_reshapeCollisionFiberZ) _aligned_free(m_reshapeCollisionFiberZ);
 #else
         free(m_reshapeUncollisionX);
         free(m_reshapeCollisionX);
@@ -528,6 +570,12 @@ namespace PhysBAM {
 		free(m_reshapeCollisionRangeMax);
 		free(m_reshapeUncollisionActivation);
 		free(m_reshapeCollisionActivation);
+		free(m_reshapeUncollisionFiberX);
+		free(m_reshapeCollisionFiberX);
+		free(m_reshapeUncollisionFiberY);
+		free(m_reshapeCollisionFiberY);
+		free(m_reshapeUncollisionFiberZ);
+		free(m_reshapeCollisionFiberZ);
 
 #endif
 		m_reshapeUncollisionX = nullptr;
@@ -549,10 +597,17 @@ namespace PhysBAM {
 		m_reshapeCollisionRangeMin = nullptr;
 		m_reshapeUncollisionActivation = nullptr;
 		m_reshapeCollisionActivation = nullptr;
-
-
-
+		m_reshapeUncollisionFiberX = nullptr; m_reshapeCollisionFiberX = nullptr;
+		m_reshapeUncollisionFiberY = nullptr; m_reshapeCollisionFiberY = nullptr;
+		m_reshapeUncollisionFiberZ = nullptr; m_reshapeCollisionFiberZ = nullptr;
     }
+
+	template <class dataType, int dim>
+	void GridDeformerTet<std::vector<VECTOR<dataType, dim>>>::setFiberField(const dataType* fx, const dataType* fy, const dataType* fz, size_t n) {
+		m_fiberX.assign(fx, fx + n);
+		m_fiberY.assign(fy, fy + n);
+		m_fiberZ.assign(fz, fz + n);
+	}
 
 	template <class dataType, int dim>
 	void GridDeformerTet<std::vector<VECTOR<dataType, dim>>>::setUniformActivation(const dataType a) {

@@ -53,6 +53,7 @@ public:
 	// every updatePhysics() call (task thread, so no race with the solve). startBeating() also
 	// stands the solver up if no hook/suture has done so yet.
 	void startBeating();
+	void generateFiberField();  // rule-based helical fiber field for active contraction (CARDIAC.md)
 	void stopBeating() { _beating = false; _ptp.setUniformActivation(1.f); }
 	inline bool isBeating() { return _beating; }
 	bccTetScene();

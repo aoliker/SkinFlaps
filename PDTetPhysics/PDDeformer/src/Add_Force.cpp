@@ -29,6 +29,9 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
                const T_DATA &strainMin,
                const T_DATA &strainMax,
                const T_DATA &activation,
+               const T_DATA &fiberX,
+               const T_DATA &fiberY,
+               const T_DATA &fiberZ,
                T_DATA (&f_Blocked)[4][3])
 {
     using namespace SIMD_Numeric_Kernel;
@@ -40,6 +43,8 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
     using T = typename Tarch::Scalar;
     T TWO[Tarch::Width]{};
     for (int i=0; i<Tarch::Width; i++) TWO[i] = 2;
+    T NEGONE[Tarch::Width]{};
+    for (int i=0; i<Tarch::Width; i++) NEGONE[i] = -1;
 
     alignas(sizeof(T_DATA)) T_DATA  F_Blocked[d * d]{};
     alignas(sizeof(T_DATA)) T_DATA  R_Blocked[d * d]{};
@@ -86,11 +91,6 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
     v0 *= s1;
     v0 += s0;
 
-    // active contraction: scale the projection target's singular values by per-tet
-    // activation (1 = passive). RHS-only - the global matrix never sees this.
-    s0.Load_Aligned(activation);
-    v0 *= s0;
-
     v1.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[0][0]));
     v2.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[3][0]));
     v3.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[6][0]));
@@ -107,6 +107,36 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
     Matrix_Times_Transpose<Tarch, T_DATA>(U_Blocked,
                                           V_Blocked,
                                           R_Blocked);
+
+    // --- active fiber contraction (COURT/agent): R <- R + (lambda-1)(R a) a^T ---
+    // a = per-tet material-space unit fiber; lambda = activation (1 passive, 0.85 = 15% shortening
+    // along the fiber). Shortens the projection target along the fiber only, so wall thickening and
+    // twist emerge from the mechanics. RHS-only: the prefactored global matrix never sees a or lambda.
+    {
+        WideVectorType col0, col1, col2, Ra, Rl, tt;
+        WideNumberType ax, ay, az, lam, lm1, negone;
+        col0.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[0][0]));
+        col1.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[3][0]));
+        col2.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[6][0]));
+        ax.Load_Aligned(fiberX);
+        ay.Load_Aligned(fiberY);
+        az.Load_Aligned(fiberZ);
+        // Ra = ax*col0 + ay*col1 + az*col2
+        Ra = col0; Ra *= ax;
+        tt = col1; tt *= ay; Ra = Ra + tt;
+        tt = col2; tt *= az; Ra = Ra + tt;
+        lam.Load_Aligned(activation);
+        negone.Load_Aligned(NEGONE);
+        lm1 = lam; lm1 = lm1 + negone;   // lambda - 1
+        Rl = Ra; Rl *= lm1;              // (lambda-1) * Ra
+        // col_j += a_j * Rl
+        tt = Rl; tt *= ax; col0 = col0 + tt;
+        tt = Rl; tt *= ay; col1 = col1 + tt;
+        tt = Rl; tt *= az; col2 = col2 + tt;
+        col0.Store(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[0][0]));
+        col1.Store(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[3][0]));
+        col2.Store(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[6][0]));
+    }
 
 // MatrixType P =  -2. * ((muHigh[eee] + muLow[eee]) * F - R);
     v0.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(F_Blocked[0][0]));
@@ -185,6 +215,9 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
         const WIDETYPE(TYPE,WIDTH) &strainMin,              \
         const WIDETYPE(TYPE,WIDTH) &strainMax,              \
         const WIDETYPE(TYPE,WIDTH) &activation,             \
+        const WIDETYPE(TYPE,WIDTH) &fiberX,                 \
+        const WIDETYPE(TYPE,WIDTH) &fiberY,                 \
+        const WIDETYPE(TYPE,WIDTH) &fiberZ,                 \
         WIDETYPE(TYPE,WIDTH) (&f_Blocked)[4][3]
 
 INSTANCE_KERNEL_SIMD_AVX_FLOAT( Add_Force, 16)

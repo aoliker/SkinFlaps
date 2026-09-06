@@ -131,6 +131,9 @@ public:
 
 	// Active contraction: uniformly scale every tet's projection target. Per-frame safe (RHS only).
 	void setUniformActivation(const T a) { m_gridDeformer.setUniformActivation(a); }
+	// Static per-tet fiber field; contraction shortens along it. Takes effect at the next full init.
+	void setFiberField(const T* fx, const T* fy, const T* fz, size_t n) { m_gridDeformer.setFiberField(fx, fy, fz, n); }
+	size_t elementCount() const { return m_gridDeformer.m_elements.size(); }
 
 	void addCollisionProxies(const int *tets, const T (*weights)[d], size_t length);
 	void addSelfCollisionElements(const int* tets, size_t length);
