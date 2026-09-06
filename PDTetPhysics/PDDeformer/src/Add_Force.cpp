@@ -28,6 +28,7 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
                const T_DATA &muHigh,
                const T_DATA &strainMin,
                const T_DATA &strainMax,
+               const T_DATA &activation,
                T_DATA (&f_Blocked)[4][3])
 {
     using namespace SIMD_Numeric_Kernel;
@@ -85,6 +86,11 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
     v0 *= s1;
     v0 += s0;
 
+    // active contraction: scale the projection target's singular values by per-tet
+    // activation (1 = passive). RHS-only - the global matrix never sees this.
+    s0.Load_Aligned(activation);
+    v0 *= s0;
+
     v1.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[0][0]));
     v2.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[3][0]));
     v3.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(V_Blocked[6][0]));
@@ -111,6 +117,7 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
     v4.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[3][0]));
     v5.Load_Aligned(reinterpret_cast<T_DATA(&)[3]>(R_Blocked[6][0]));
 
+    s0.Load_Aligned(muLow);  // s0 was clobbered by the activation load above
     s0 = s0 + s1;
 
     v0 *= s0;
@@ -177,6 +184,7 @@ void Add_Force(const T_DATA (&x_Blocked)[4][3],
         const WIDETYPE(TYPE,WIDTH) &muHigh,                 \
         const WIDETYPE(TYPE,WIDTH) &strainMin,              \
         const WIDETYPE(TYPE,WIDTH) &strainMax,              \
+        const WIDETYPE(TYPE,WIDTH) &activation,             \
         WIDETYPE(TYPE,WIDTH) (&f_Blocked)[4][3]
 
 INSTANCE_KERNEL_SIMD_AVX_FLOAT( Add_Force, 16)

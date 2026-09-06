@@ -365,6 +365,19 @@ void bccTetScene::initPdPhysics()
 #endif
 }
 
+void bccTetScene::startBeating()
+{  // stands the solver up if no hook/suture has yet; then activation oscillates in updatePhysics()
+	if (_vnTets.empty())
+		return;
+	if (!_forcesApplied) {
+		_forcesApplied = true;
+		initPdPhysics();
+		_tetsModified = true;
+	}
+	_beatFrame = 0;
+	_beating = true;
+}
+
 void bccTetScene::updatePhysics()
 {
 	if (_vnTets.empty())
@@ -376,6 +389,12 @@ void bccTetScene::updatePhysics()
 
 #ifndef NO_PHYSICS
 	if (_tetsModified || _forcesApplied) {
+		if (_beating) {  // runs on the physics task thread, before the solve - no race with it
+			++_beatFrame;
+			float phase = float(_beatFrame % _beatPeriod) / _beatPeriod;
+			float lambda = 1.f - _beatAmplitude * 0.5f * (1.f - cosf(phase * 6.2831853f));
+			_ptp.setUniformActivation(lambda);
+		}
 		_tetCol.findSoftCollisionPairs();
 		_ptp.solve();
 	}

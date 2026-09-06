@@ -77,6 +77,7 @@ namespace PhysBAM {
         std::vector<T> m_muHigh;
         std::vector<T> m_rangeMin;
         std::vector<T> m_rangeMax;
+        std::vector<T> m_activation;  // per-tet active-contraction scale on the projection target; empty or 1 = passive
 
         std::vector<ElementFlag> m_elementFlags;
         std::vector<T> m_elementRestVolume;
@@ -109,6 +110,9 @@ namespace PhysBAM {
         BlockedScalarType m_reshapeUncollisionMuHigh = nullptr;
         BlockedScalarType m_reshapeUncollisionRangeMin = nullptr;
         BlockedScalarType m_reshapeUncollisionRangeMax = nullptr;
+
+        BlockedScalarType m_reshapeUncollisionActivation = nullptr;
+        BlockedScalarType m_reshapeCollisionActivation = nullptr;
 
         // auxilary structure
         std::vector<int> m_reshapeUncollisionIndicesOffsets;
@@ -161,6 +165,7 @@ namespace PhysBAM {
 
         void deallocateAuxiliaryStructures();
         void initializeElementFlags();
+        void setUniformActivation(const T a);  // per-frame safe: writes the blocked arrays directly, no reinit
     };
 
 } // namespace PhysBAM

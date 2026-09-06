@@ -896,6 +896,18 @@ void surgicalActions::onKeyDown(int key)
 {
 	std::string hStr;
 	// ctrl and shift keys now handled by frame calls
+	if (key == GLFW_KEY_B)  // toggle active-contraction "beat mode"
+	{
+		_bts.setPhysicsPause(true);  // standard preamble: no new solve while mutating
+		while (!physicsDone)
+			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		if (_bts.isBeating())
+			_bts.stopBeating();
+		else
+			_bts.startBeating();  // stands the solver up if no hook/suture has yet
+		_bts.setPhysicsPause(false);
+		return;
+	}
 	if(key == GLFW_KEY_DELETE)	// delete key
 	{
 ///		// can't delete periosteal undermines (toolState 7) already done.

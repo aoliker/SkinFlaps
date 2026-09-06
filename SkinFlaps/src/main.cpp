@@ -25,7 +25,8 @@ int main(int argc, char** argv)
 	surgicalActions* sa = ffg.getSurgicalActions();
 	bccTetScene* bts = sa->getBccTetScene();
 	sa->physicsDone = true;
-	if (argc > 1) {  // scripted replay: SkinFlaps.exe <history.hst> [modelDir]
+	int beatFrames = argc > 3 ? atoi(argv[3]) : 0;  // scripted beat test: frames of beating after replay
+	if (argc > 1) {  // scripted replay: SkinFlaps.exe <history.hst> [modelDir] [beatFrames]
 		FacialFlapsGui::scriptedReplay = true;
 		if (!FacialFlapsGui::startScriptedReplay(argv[1], argc > 2 ? argv[2] : "")) {
 			fputs("Failed to load history file for scripted replay.\n", stderr);
@@ -34,6 +35,8 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Scripted replay of %s: %zu actions.\n", argv[1], sa->historySize());
 	}
 	int settleFrames = 120;  // scripted replay: extra solve frames after the last action before exit
+	long beatFramesRun = 0;
+	bool beatStarted = false;
 	bool updateThrow = false;
 	while (!glfwWindowShouldClose(ffg.FFwindow))
 	{
@@ -87,6 +90,30 @@ int main(int argc, char** argv)
 				if (FacialFlapsGui::scriptedReplay && ffg.nextCounter < 1) {
 					if (!sa->historyComplete())
 						ffg.nextCounter = 1;  // auto-press NEXT
+					else if (beatFrames > 0) {  // scripted beat test after the history is done
+						if (!beatStarted) {
+							bts->startBeating();  // one-time full solver init if nothing else did
+							beatStarted = true;
+							fprintf(stderr, "beat mode started: %d frames\n", beatFrames);
+						}
+						else {
+							++beatFramesRun;
+							if (beatFramesRun % 30 == 0 || beatFramesRun >= beatFrames) {
+								// surface bounding-box volume as the beat metric
+								std::vector<Vec3f>* px = sa->getSurgGraphics()->getMaterialTriangles()->getPositionArrayPtr();
+								float mnv[3]{ 1e30f, 1e30f, 1e30f }, mxv[3]{ -1e30f, -1e30f, -1e30f };
+								for (auto& p : *px) for (int c = 0; c < 3; ++c) {
+									if (p[c] < mnv[c]) mnv[c] = p[c];
+									if (p[c] > mxv[c]) mxv[c] = p[c];
+								}
+								fprintf(stderr, "beat %ld: bbox vol %.1f (%.2f x %.2f x %.2f)\n", beatFramesRun,
+									(mxv[0] - mnv[0]) * (mxv[1] - mnv[1]) * (mxv[2] - mnv[2]),
+									mxv[0] - mnv[0], mxv[1] - mnv[1], mxv[2] - mnv[2]);
+								if (beatFramesRun >= beatFrames)
+									glfwSetWindowShouldClose(ffg.FFwindow, 1);
+							}
+						}
+					}
 					else if (--settleFrames < 1)
 						glfwSetWindowShouldClose(ffg.FFwindow, 1);
 				}

@@ -228,6 +228,14 @@ public:
 			throw std::logic_error("need to init solver before reinit");
 		m_solver.reInitializeSolver();
 	}
+
+	public:
+	// Active contraction (COURT/agent addition): scale all projection targets by a (1 = passive,
+	// 0.85 = 15% contraction). Safe to call every frame between solves - RHS only, no refactor.
+	inline void setUniformActivation(const float a) {
+		if (m_deformerInited)
+			m_solver.setUniformActivation(a);
+	}
 	public:
 
 	inline void inputCollisionProxies(const std::vector<int> &tets, const std::vector<std::array<float, 3> > &weights) {

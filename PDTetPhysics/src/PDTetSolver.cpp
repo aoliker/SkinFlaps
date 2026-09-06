@@ -494,6 +494,7 @@ void PDTetSolver<T, d>::initializeDeformer(const int(*elements)[d + 1], const si
 	m_gridDeformer.m_fakeSutures.clear();
 	m_gridDeformer.m_collisionSutures.clear();
 	m_gridDeformer.m_InternodeConstraints.clear();
+	m_gridDeformer.m_activation.clear();  // stale per-tet activation must not survive a topology change
 
 	int nNodes = 0;
 	m_gridDeformer.m_elements.resize(nEls);
@@ -554,6 +555,7 @@ void PDTetSolver<T, d>::initializeDeformer_multires(const int(*elements)[d + 1],
 	m_gridDeformer.m_fakeSutures.clear();
 	m_gridDeformer.m_collisionSutures.clear();
 	m_gridDeformer.m_InternodeConstraints.clear();
+	m_gridDeformer.m_activation.clear();  // stale per-tet activation must not survive a topology change
 
 	int nNodes = 0;
 	m_gridDeformer.m_elements.resize(nEls);

@@ -49,6 +49,12 @@ public:
 	void setPhysicsPause(bool pause) { _physicsPaused = pause; }
 	inline bool isPhysicsPaused(){ return  _physicsPaused; }
 	inline bool forcesApplied() { return  _forcesApplied; }
+	// Active contraction driver ("beat mode"): sinusoidal uniform activation applied at the top of
+	// every updatePhysics() call (task thread, so no race with the solve). startBeating() also
+	// stands the solver up if no hook/suture has done so yet.
+	void startBeating();
+	void stopBeating() { _beating = false; _ptp.setUniformActivation(1.f); }
+	inline bool isBeating() { return _beating; }
 	bccTetScene();
 	~bccTetScene();
 
@@ -63,6 +69,10 @@ private:
 	vnBccTetCutter_tbb _tc;  // multithreaded version using Intel threaded building blocks.  Much faster, but indices of nodes and tets different each run as nondeterministic.
 	pdTetPhysics _ptp;
 	bool _forcesApplied, _tetsModified, _physicsPaused;
+	bool _beating = false;
+	long _beatFrame = 0;
+	int _beatPeriod = 90;      // solve frames per cardiac cycle
+	float _beatAmplitude = 0.15f;  // peak contraction (0.15 = 15%)
 	float _lowTetWeight;
 	struct boundingBox3{
 		float corners[6];

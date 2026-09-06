@@ -1,0 +1,34 @@
+{
+    "dynamicObjects" : {
+        "heart.obj" : {
+            "textureMaps": [
+                1,
+                2,
+                3,
+                4
+            ]
+        }
+    },
+    "textureFiles" : {
+        "heartDiffuse.jpg" : 1,
+        "heartNormal.jpg" : 2,
+        "heartBedTexture.jpg" : 3,
+        "heartBedNormal.jpg" : 4
+    },
+    "tetrahedralProperties" : {
+        "minStrain" : 0.5,
+        "maxStrain" : 1.26,
+        "lowTetWeight" : 500.0,
+        "highTetWeight" : 1000.0,
+        "TJunctionWeight" : 50.0,
+        "collisionWeight": 40000.0,
+        "selfCollisionWeight" : 80000.0,
+        "fixedWeight" : 10000.0,
+        "periferalWeight" : 1000.0,
+        "hookWeight" : 1000.0,
+        "sutureWeight" : 2000.0,
+        "autoSutureSpacing" : 0.14,
+        "nTetSizeLevels" : 4,
+        "maxDimMegatetSubdivs" : 34
+    }
+}

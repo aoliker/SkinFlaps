@@ -82,6 +82,9 @@ namespace PhysBAM {
 		m_reshapeUncollisionRangeMax = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
 		m_reshapeCollisionRangeMax = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
 
+		m_reshapeUncollisionActivation = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nUncollisionBlocks * BlockWidth * sizeof(T), Alignment));
+		m_reshapeCollisionActivation = reinterpret_cast<BlockedScalarType>(_aligned_malloc(m_nCollisionBlocks * BlockWidth * sizeof(T), Alignment));
+
 #else
 
 		m_reshapeUncollisionX = reinterpret_cast<BlockedShapeMatrixType>(aligned_alloc(Alignment, m_nUncollisionBlocks*BlockWidth*(d + 1)*d * sizeof(T)));
@@ -104,11 +107,18 @@ namespace PhysBAM {
 
 		m_reshapeUncollisionRangeMax = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
 		m_reshapeCollisionRangeMax = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
+
+		m_reshapeUncollisionActivation = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nUncollisionBlocks * BlockWidth * sizeof(T)));
+		m_reshapeCollisionActivation = reinterpret_cast<BlockedScalarType>(aligned_alloc(Alignment, m_nCollisionBlocks * BlockWidth * sizeof(T)));
 #endif
 		if (m_reshapeUncollisionX == nullptr || m_reshapeCollisionX == nullptr ||
 			m_reshapeUncollisionGradientMatrix == nullptr || m_reshapeCollisionGradientMatrix == nullptr ||
 			m_reshapeUncollisionElementRestVolume == nullptr || m_reshapeCollisionElementRestVolume == nullptr)
 			throw std::logic_error("fail to allocate memory for m_reshapeX");
+
+		// default activation = 1 (passive) everywhere, padding lanes included
+		for (int b = 0; b < m_nUncollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeUncollisionActivation[b][e] = (T)1;
+		for (int b = 0; b < m_nCollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeCollisionActivation[b][e] = (T)1;
 
 		// initialize reshaped data
 		for (int e = 0, numOfUncollision = 0, numOfCollision = 0; e < m_elements.size(); e++) {
@@ -126,6 +136,7 @@ namespace PhysBAM {
 				m_reshapeUncollisionMuHigh[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_muHigh[e];
 				m_reshapeUncollisionRangeMin[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_rangeMin[e];
 				m_reshapeUncollisionRangeMax[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = m_rangeMax[e];
+				m_reshapeUncollisionActivation[numOfUncollision / BlockWidth][numOfUncollision % BlockWidth] = e < (int)m_activation.size() ? m_activation[e] : (T)1;
 
 				numOfUncollision++;
 			}
@@ -143,6 +154,7 @@ namespace PhysBAM {
 				m_reshapeCollisionMuHigh[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_muHigh[e];
 				m_reshapeCollisionRangeMax[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_rangeMax[e];
 				m_reshapeCollisionRangeMin[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = m_rangeMin[e];
+				m_reshapeCollisionActivation[numOfCollision / BlockWidth][numOfCollision % BlockWidth] = e < (int)m_activation.size() ? m_activation[e] : (T)1;
 				numOfCollision++;
 			}
 			else if(m_elementFlags[e] != ElementFlag::inActive) throw std::logic_error("elements must be inActive, unCollisionEl or CollisionEl");
@@ -417,6 +429,7 @@ namespace PhysBAM {
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionMuHigh[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionRangeMin[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionRangeMax[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeUncollisionActivation[be][ee]),
 							reinterpret_cast<T(&)[d + 1][d][BlockWidth]>(reshapeUncollisionf[be][0][0][ee]));
 				}
 
@@ -455,6 +468,7 @@ namespace PhysBAM {
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionMuHigh[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionRangeMin[be][ee]),
 							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionRangeMax[be][ee]),
+							reinterpret_cast<T(&)[BlockWidth]>(m_reshapeCollisionActivation[be][ee]),
 							reinterpret_cast<T(&)[d + 1][d][BlockWidth]>(reshapeCollisionf[be][0][0][ee]));
 				}
 
@@ -492,6 +506,8 @@ namespace PhysBAM {
 		if (m_reshapeCollisionRangeMin) _aligned_free(m_reshapeCollisionRangeMin);
 		if (m_reshapeUncollisionRangeMax) _aligned_free(m_reshapeUncollisionRangeMax);
 		if (m_reshapeCollisionRangeMax) _aligned_free(m_reshapeCollisionRangeMax);
+		if (m_reshapeUncollisionActivation) _aligned_free(m_reshapeUncollisionActivation);
+		if (m_reshapeCollisionActivation) _aligned_free(m_reshapeCollisionActivation);
 #else
         free(m_reshapeUncollisionX);
         free(m_reshapeCollisionX);
@@ -510,6 +526,8 @@ namespace PhysBAM {
 		free(m_reshapeCollisionRangeMin);
 		free(m_reshapeUncollisionRangeMax);
 		free(m_reshapeCollisionRangeMax);
+		free(m_reshapeUncollisionActivation);
+		free(m_reshapeCollisionActivation);
 
 #endif
 		m_reshapeUncollisionX = nullptr;
@@ -529,10 +547,21 @@ namespace PhysBAM {
 		m_reshapeCollisionRangeMax = nullptr;
 		m_reshapeUncollisionRangeMin = nullptr;
 		m_reshapeCollisionRangeMin = nullptr;
+		m_reshapeUncollisionActivation = nullptr;
+		m_reshapeCollisionActivation = nullptr;
 
 
-		
+
     }
+
+	template <class dataType, int dim>
+	void GridDeformerTet<std::vector<VECTOR<dataType, dim>>>::setUniformActivation(const dataType a) {
+		m_activation.assign(m_elements.size(), a);
+		if (m_reshapeUncollisionActivation)
+			for (int b = 0; b < m_nUncollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeUncollisionActivation[b][e] = a;
+		if (m_reshapeCollisionActivation)
+			for (int b = 0; b < m_nCollisionBlocks; b++) for (int e = 0; e < BlockWidth; e++) m_reshapeCollisionActivation[b][e] = a;
+	}
 
 /*void addElasticForce(StateVariableType &f, const ElementFlag flag, const T weightProportion) const {
             //LOG::SCOPE scope("GridDeformerTet::addElasticForce()");

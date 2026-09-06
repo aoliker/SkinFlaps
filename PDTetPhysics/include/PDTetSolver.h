@@ -127,7 +127,10 @@ public:
 
 	void initializeSolver();  // After constraints have changed computes ATA and does its LDLT()
 
-	void reInitializeSolver();  
+	void reInitializeSolver();
+
+	// Active contraction: uniformly scale every tet's projection target. Per-frame safe (RHS only).
+	void setUniformActivation(const T a) { m_gridDeformer.setUniformActivation(a); }
 
 	void addCollisionProxies(const int *tets, const T (*weights)[d], size_t length);
 	void addSelfCollisionElements(const int* tets, size_t length);
