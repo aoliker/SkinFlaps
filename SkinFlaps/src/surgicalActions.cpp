@@ -148,6 +148,12 @@ bool surgicalActions::rightMouseDown(std::string objectHit, float (&position)[3]
 //				uv[0] = 0.33;
 //				uv[1] = 0.33;
 
+		// A physics solve may be in flight (e.g. on a beating heart, tool-select paused new tasks
+		// but an already-running solve is not stopped). Wait for it before mutating the solver, or
+		// addHook / initializePhysics races the solve. Mirrors the delete-hook preamble.
+		_bts.setPhysicsPause(true);
+		while (!physicsDone)
+			std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		if ((hookNum = _hooks.addHook(tr, triangle, uv, _strongHooks)) > -1)
 		{
 
