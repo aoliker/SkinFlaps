@@ -4,6 +4,8 @@
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 
 #include <stdio.h>
+#include <string.h>
+#include <vector>
 #include <tbb/task_arena.h>
 #include <atomic>
 #include "surgicalActions.h"
@@ -11,6 +13,28 @@
 #include "FacialFlapsGui.h"
 
 FacialFlapsGui ffg;
+
+// scripted-mode framebuffer dump: 24-bit BMP straight from glReadPixels (rows are already
+// bottom-up, matching BMP layout). For capturing what the compositor won't hand to a screen grab.
+static void dumpFramebufferBMP(GLFWwindow* w, const char* path)
+{
+	int fbw, fbh;
+	glfwGetFramebufferSize(w, &fbw, &fbh);
+	int rowBytes = (fbw * 3 + 3) & ~3;
+	std::vector<unsigned char> px((size_t)rowBytes * fbh, 0);
+	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+	glReadPixels(0, 0, fbw, fbh, GL_BGR, GL_UNSIGNED_BYTE, px.data());
+	unsigned int imgBytes = (unsigned int)px.size(), fileBytes = 54 + imgBytes;
+	unsigned char hdr[54] = { 'B','M' };
+	memcpy(hdr + 2, &fileBytes, 4); hdr[10] = 54; hdr[14] = 40;
+	memcpy(hdr + 18, &fbw, 4); memcpy(hdr + 22, &fbh, 4);
+	hdr[26] = 1; hdr[28] = 24; memcpy(hdr + 34, &imgBytes, 4);
+	if (FILE* bf = fopen(path, "wb")) {
+		fwrite(hdr, 1, 54, bf);
+		fwrite(px.data(), 1, px.size(), bf);
+		fclose(bf);
+	}
+}
 
 int main(int argc, char** argv)
 {
@@ -37,6 +61,7 @@ int main(int argc, char** argv)
 	int settleFrames = 120;  // scripted replay: extra solve frames after the last action before exit
 	long beatFramesRun = 0;
 	bool beatStarted = false;
+	bool dumpShotThisFrame = false;
 	bool updateThrow = false;
 	while (!glfwWindowShouldClose(ffg.FFwindow))
 	{
@@ -109,6 +134,7 @@ int main(int argc, char** argv)
 								fprintf(stderr, "beat %ld: bbox vol %.1f (%.2f x %.2f x %.2f)\n", beatFramesRun,
 									(mxv[0] - mnv[0]) * (mxv[1] - mnv[1]) * (mxv[2] - mnv[2]),
 									mxv[0] - mnv[0], mxv[1] - mnv[1], mxv[2] - mnv[2]);
+								dumpShotThisFrame = true;
 								if (beatFramesRun >= beatFrames)
 									glfwSetWindowShouldClose(ffg.FFwindow, 1);
 							}
@@ -145,6 +171,13 @@ int main(int argc, char** argv)
 			ffg.getgl3wGraphics()->drawAll();
 
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());  // Always do this last so it prints GUI on top of your scene
+
+			if (dumpShotThisFrame) {  // scripted beat mode: dump the finished back buffer
+				dumpShotThisFrame = false;
+				char shotPath[64];
+				snprintf(shotPath, sizeof(shotPath), "beat_%04ld.bmp", beatFramesRun);
+				dumpFramebufferBMP(ffg.FFwindow, shotPath);
+			}
 		}
 		catch (const std::runtime_error& re) {
 			ffg.nextCounter = 0;
