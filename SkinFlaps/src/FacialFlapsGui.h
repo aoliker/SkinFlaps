@@ -248,8 +248,14 @@ public:
 				glfwSetWindowShouldClose(window, 1);
 			else if (mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL))
 				ctrlShiftKeyDown = true;
-			else
-				igSurgAct.onKeyDown(key);
+			else {
+				// onKeyDown runs inside this Win32 callback; a C++ throw here cannot unwind across
+				// the kernel/WndProc boundary to main's try/catch, so it would crash the process.
+				// Catch tool errors locally: show the message, abort the action, keep running.
+				try { igSurgAct.onKeyDown(key); }
+				catch (const std::exception& e) { igSurgAct.setToolState(0); csgToolstate = 0; sendUserMessage(e.what(), "Tool error - action cancelled"); }
+				catch (...) { igSurgAct.setToolState(0); csgToolstate = 0; sendUserMessage("Unspecified error; action cancelled.", "Tool error"); }
+			}
 		}
 		else if (action == GLFW_RELEASE && scancode != 0) {
 

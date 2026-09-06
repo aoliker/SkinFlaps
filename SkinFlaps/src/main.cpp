@@ -8,6 +8,55 @@
 #include <vector>
 #include <tbb/task_arena.h>
 #include <atomic>
+#include <windows.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
+// Crash diagnostics: an access violation on the physics task thread is a structured exception, so
+// the task's catch(...) misses it and no ERROR.hst is written - the app just dies. This handler
+// writes a symbolized stack trace (crash_stack.txt) and a minidump (crash.dmp) beside the exe.
+static LONG WINAPI crashHandler(EXCEPTION_POINTERS* ep)
+{
+	HANDLE proc = GetCurrentProcess();
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+	SymInitialize(proc, NULL, TRUE);
+	if (FILE* f = fopen("crash_stack.txt", "w")) {
+		fprintf(f, "Exception 0x%08lX at %p\n", ep->ExceptionRecord->ExceptionCode, ep->ExceptionRecord->ExceptionAddress);
+		if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2)
+			fprintf(f, "  access violation %s address 0x%llX\n",
+				ep->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
+				(unsigned long long)ep->ExceptionRecord->ExceptionInformation[1]);
+		CONTEXT ctx = *ep->ContextRecord;
+		STACKFRAME64 frame{};
+		frame.AddrPC.Offset = ctx.Rip; frame.AddrPC.Mode = AddrModeFlat;
+		frame.AddrFrame.Offset = ctx.Rbp; frame.AddrFrame.Mode = AddrModeFlat;
+		frame.AddrStack.Offset = ctx.Rsp; frame.AddrStack.Mode = AddrModeFlat;
+		for (int i = 0; i < 48; ++i) {
+			if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, proc, GetCurrentThread(), &frame, &ctx, NULL,
+				SymFunctionTableAccess64, SymGetModuleBase64, NULL) || !frame.AddrPC.Offset)
+				break;
+			DWORD64 disp = 0; char buf[sizeof(SYMBOL_INFO) + 256]{};
+			SYMBOL_INFO* sym = (SYMBOL_INFO*)buf; sym->SizeOfStruct = sizeof(SYMBOL_INFO); sym->MaxNameLen = 255;
+			if (SymFromAddr(proc, frame.AddrPC.Offset, &disp, sym)) {
+				IMAGEHLP_LINE64 line{}; line.SizeOfStruct = sizeof(line); DWORD ld = 0;
+				if (SymGetLineFromAddr64(proc, frame.AddrPC.Offset, &ld, &line))
+					fprintf(f, "%2d  %s +0x%llX  (%s:%lu)\n", i, sym->Name, (unsigned long long)disp, line.FileName, line.LineNumber);
+				else
+					fprintf(f, "%2d  %s +0x%llX\n", i, sym->Name, (unsigned long long)disp);
+			}
+			else fprintf(f, "%2d  0x%llX\n", i, (unsigned long long)frame.AddrPC.Offset);
+		}
+		fclose(f);
+	}
+	if (HANDLE hf = CreateFileA("crash.dmp", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL)) {
+		if (hf != INVALID_HANDLE_VALUE) {
+			MINIDUMP_EXCEPTION_INFORMATION mei{}; mei.ThreadId = GetCurrentThreadId(); mei.ExceptionPointers = ep; mei.ClientPointers = FALSE;
+			MiniDumpWriteDump(proc, GetCurrentProcessId(), hf, MiniDumpNormal, &mei, NULL, NULL);
+			CloseHandle(hf);
+		}
+	}
+	return EXCEPTION_EXECUTE_HANDLER;
+}
 #include "surgicalActions.h"
 #include <gl3wGraphics.h>
 #include "FacialFlapsGui.h"
@@ -38,6 +87,7 @@ static void dumpFramebufferBMP(GLFWwindow* w, const char* path)
 
 int main(int argc, char** argv)
 {
+	SetUnhandledExceptionFilter(crashHandler);  // capture stack + minidump on any hard crash
 	if (!ffg.initImguiGlfw()) {
 		puts("Failed to open Glfw window.\n");
 		return 1;
@@ -57,7 +107,8 @@ int main(int argc, char** argv)
 	int beatFrames = (!interactiveView && argc > 3) ? atoi(argv[3]) : 0;  // scripted beat test: frames of beating after replay
 	int dumpEvery = (!interactiveView && argc > 4) ? atoi(argv[4]) : 0;   // >0: dump a framebuffer BMP every N beat frames (video capture)
 	if (interactiveView) {
-		FacialFlapsGui::scriptedReplay = true;  // route the benign missing-.bed message to stderr, not a modal
+		// Interactive: leave scriptedReplay false so tool messages are normal modals (useful
+		// feedback while testing hooks/cuts). startScriptedReplay just loads the scene+history.
 		if (argc < 3 || !FacialFlapsGui::startScriptedReplay(argv[2], argc > 3 ? argv[3] : "")) {
 			fputs("usage: SkinFlaps.exe --view <history.hst> [modelDir]\n", stderr);
 			return 2;

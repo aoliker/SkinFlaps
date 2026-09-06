@@ -993,13 +993,17 @@ int skinCutUndermineTets::deepPointTetWeight(const std::unordered_map<int, deepP
 	std::list<int> lt, tp;
 	_vbt->centroidTets(tc, lt);
 	int tetOut = -1, count = 0;
-	while (lt.empty()) {
-		tc = _vbt->centroidUpOneLevel(tc);
-		_vbt->centroidTets(tc, lt);
-		++count;
+	try {
+		while (lt.empty()) {
+			if (++count > 15)
+				return -1;  // not inside the solid lattice - caller marks this deep point invalid (no throw)
+			tc = _vbt->centroidUpOneLevel(tc);
+			_vbt->centroidTets(tc, lt);
+		}
 	}
-	if (count > 15)
-		throw(std::logic_error("Modelling error.  Deep bed point not inside solid.\n"));
+	catch (...) {
+		return -1;  // walked past the top subdivision level: point is outside the solid
+	}
 	if (lt.size() < 2)
 		tetOut = lt.front();
 	else {
@@ -1022,13 +1026,17 @@ int skinCutUndermineTets::flapBottomTet(const int topVertex, const Vec3f &bottom
 	std::list<int> lt, tp;
 	_vbt->centroidTets(tc, lt);
 	int tetOut = -1, count = 0;
-	while (lt.empty()) {
-		tc = _vbt->centroidUpOneLevel(tc);
-		_vbt->centroidTets(tc, lt);
-		++count;
+	try {
+		while (lt.empty()) {
+			if (++count > 15)
+				return -1;  // deep-bed point not inside the solid - signal error instead of throwing
+			tc = _vbt->centroidUpOneLevel(tc);
+			_vbt->centroidTets(tc, lt);
+		}
 	}
-	if (count > 15)
-		throw(std::logic_error("Modelling error.  Deep bed point not inside solid.\n"));
+	catch (...) {
+		return -1;
+	}
 	if (lt.size() < 2)
 		tetOut = lt.front();
 	else {
