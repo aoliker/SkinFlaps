@@ -50,6 +50,7 @@ int main(int argc, char** argv)
 	bccTetScene* bts = sa->getBccTetScene();
 	sa->physicsDone = true;
 	int beatFrames = argc > 3 ? atoi(argv[3]) : 0;  // scripted beat test: frames of beating after replay
+	int dumpEvery = argc > 4 ? atoi(argv[4]) : 0;   // >0: dump a framebuffer BMP every N beat frames (video capture)
 	if (argc > 1) {  // scripted replay: SkinFlaps.exe <history.hst> [modelDir] [beatFrames]
 		FacialFlapsGui::scriptedReplay = true;
 		if (!FacialFlapsGui::startScriptedReplay(argv[1], argc > 2 ? argv[2] : "")) {
@@ -123,6 +124,8 @@ int main(int argc, char** argv)
 						}
 						else {
 							++beatFramesRun;
+							if (dumpEvery > 0 && beatFramesRun % dumpEvery == 0)
+								dumpShotThisFrame = true;
 							if (beatFramesRun % 30 == 0 || beatFramesRun >= beatFrames) {
 								// surface bounding-box volume as the beat metric
 								std::vector<Vec3f>* px = sa->getSurgGraphics()->getMaterialTriangles()->getPositionArrayPtr();
