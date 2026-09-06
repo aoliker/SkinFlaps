@@ -44,6 +44,8 @@ using namespace gl;
 bool FacialFlapsGui::powerHooks = false, FacialFlapsGui::showToolbox = true, FacialFlapsGui::viewPhysics = false, FacialFlapsGui::viewSurface = true,
 	FacialFlapsGui::wheelZoom = true, FacialFlapsGui::user_message_flag = false, FacialFlapsGui::except_thrown_flag = false, FacialFlapsGui::getTextInput = false;
 int FacialFlapsGui::nextCounter = 0;
+bool FacialFlapsGui::scriptedReplay = false;
+int FacialFlapsGui::scriptedExitCode = 0;
 int FacialFlapsGui::csgToolstate, FacialFlapsGui::FileDlgMode = 0;
 std::string FacialFlapsGui::modelDirectory, FacialFlapsGui::historyDirectory, FacialFlapsGui::objDirectory, FacialFlapsGui::modelFile, FacialFlapsGui::historyFile, FacialFlapsGui::user_message, FacialFlapsGui::user_message_title;
 // std::string FacialFlapsGui::loadDir, FacialFlapsGui::loadFile;

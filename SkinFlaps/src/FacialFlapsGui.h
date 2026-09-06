@@ -24,6 +24,7 @@
 #include "ImGuiFileDialogConfig.h"
 #include <string>
 #include <fstream>
+#include <stdio.h>
 #include <tbb/task_arena.h>
 #include <gl3wGraphics.h>
 #include "surgicalActions.h"
@@ -436,12 +437,28 @@ public:
 	}
 
 	static void sendUserMessage(const char *message, const char *windowTitle) {
+		if (scriptedReplay) {  // unattended: no modal to dismiss; any message during replay is an anomaly
+			fprintf(stderr, "[%s] %s\n", windowTitle, message);
+			fflush(stderr);
+			if (scriptedExitCode < 2)
+				scriptedExitCode = 2;
+			return;
+		}
 		user_message = message;
 		user_message_title = windowTitle;
 		user_message_flag = true;
 	}
 
 	static void handleThrow(const char* message) {
+		if (scriptedReplay) {
+			std::string errHist = historyDirectory + "ERROR.hst";
+			igSurgAct.saveSurgicalHistory(errHist.c_str());
+			fprintf(stderr, "[Program exception thrown] %s\nHistory to this point has been saved in ERROR.hst\n", message);
+			fflush(stderr);
+			scriptedExitCode = 3;
+			glfwSetWindowShouldClose(FFwindow, 1);
+			return;
+		}
 		user_message = message;
 		std::string errHist = historyDirectory + "ERROR.hst";
 		igSurgAct.saveSurgicalHistory(errHist.c_str());
@@ -449,6 +466,30 @@ public:
 		user_message_title = "Program exception thrown";
 		user_message_flag = true;
 		except_thrown_flag = true;
+	}
+
+	// Load a history file for unattended replay; mirrors the History->Load dialog path minus the dialogs.
+	// hstFullPath may be absolute or relative; a bare filename resolves against the default History directory.
+	static bool startScriptedReplay(const std::string& hstFullPath, const std::string& modelDirOverride) {
+		setDefaultDirectories();
+		if (!modelDirOverride.empty()) {
+			modelDirectory = modelDirOverride;
+			if (modelDirectory.back() != '\\' && modelDirectory.back() != '/')
+				modelDirectory.append("\\");
+			igSurgAct.setModelDirectory(modelDirectory.c_str());
+		}
+		size_t sep = hstFullPath.find_last_of("\\/");
+		if (sep == std::string::npos)
+			historyFile = hstFullPath;
+		else {
+			historyDirectory = hstFullPath.substr(0, sep + 1);
+			historyFile = hstFullPath.substr(sep + 1);
+			igSurgAct.setHistoryDirectory(historyDirectory.c_str());
+		}
+		std::string title("Skin Flaps Simulator playing (scripted) - ");
+		title.append(historyFile);
+		glfwSetWindowTitle(FFwindow, title.c_str());
+		return igSurgAct.loadHistory(historyDirectory.c_str(), historyFile.c_str());
 	}
 
 	static void showHourglass() {
@@ -866,6 +907,8 @@ public:
 	static GLFWwindow* FFwindow;
 	static int nextCounter;
 	static bool user_message_flag, physicsDrag, getTextInput;
+	static bool scriptedReplay;   // true when driven by argv history replay instead of a user
+	static int scriptedExitCode;  // 0 clean, 2 user message fired during replay, 3 exception thrown
 
 private:
 	static bool powerHooks, showToolbox, viewPhysics, viewSurface, wheelZoom, except_thrown_flag;

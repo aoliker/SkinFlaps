@@ -1572,6 +1572,7 @@ void surgicalActions::historyAttachFailure(std::string& errorDescription) {
 		tarr.push_back(*it);
 	_historyArray.Clear();
 	_historyArray = tarr;
+	_historyIt = _historyArray.end();  // was left dangling on the old array; nothing further to replay
 	std::string msg = errorDescription;
 	msg.append("\nSetting history back one step and truncating further forward.");
 	sendUserMessage(msg.c_str(), "Program error");

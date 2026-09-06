@@ -45,6 +45,9 @@ public:
 	bool loadHistory(const char *historyDir, const char *historyFile);
 	void nextHistoryAction();
 	bool historyEmpty()	{return _historyArray.size()<1;}
+	bool historyComplete() { return _historyArray.size() < 1 || _historyIt == _historyArray.end(); }  // only meaningful after loadHistory()
+	size_t historySize() { return _historyArray.size(); }
+	size_t historyActionsDone() { return _historyIt - _historyArray.begin(); }
 	bool setHistoryAttachPoint(const int triangle, const float(&uv)[2], int &material, float(&historyTexture)[2], Vec3f &historyVec);
 	// Input an attach point in current environment. Outputs a material, texture, and displacement for storage in a history file.
 	bool getHistoryAttachPoint(const int material, const float(&historyTexture)[2], const Vec3f &displacement, int &triangle, float(&uv)[2], bool findEdge);

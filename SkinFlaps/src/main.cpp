@@ -12,7 +12,7 @@
 
 FacialFlapsGui ffg;
 
-int main(int, char**)
+int main(int argc, char** argv)
 {
 	if (!ffg.initImguiGlfw()) {
 		puts("Failed to open Glfw window.\n");
@@ -25,6 +25,15 @@ int main(int, char**)
 	surgicalActions* sa = ffg.getSurgicalActions();
 	bccTetScene* bts = sa->getBccTetScene();
 	sa->physicsDone = true;
+	if (argc > 1) {  // scripted replay: SkinFlaps.exe <history.hst> [modelDir]
+		FacialFlapsGui::scriptedReplay = true;
+		if (!FacialFlapsGui::startScriptedReplay(argv[1], argc > 2 ? argv[2] : "")) {
+			fputs("Failed to load history file for scripted replay.\n", stderr);
+			return 2;
+		}
+		fprintf(stderr, "Scripted replay of %s: %zu actions.\n", argv[1], sa->historySize());
+	}
+	int settleFrames = 120;  // scripted replay: extra solve frames after the last action before exit
 	bool updateThrow = false;
 	while (!glfwWindowShouldClose(ffg.FFwindow))
 	{
@@ -75,9 +84,17 @@ int main(int, char**)
 				}
 				if (ffg.physicsDrag)  //  && ffg.loadFile.empty()
 					ffg.physicsDrag = false;
+				if (FacialFlapsGui::scriptedReplay && ffg.nextCounter < 1) {
+					if (!sa->historyComplete())
+						ffg.nextCounter = 1;  // auto-press NEXT
+					else if (--settleFrames < 1)
+						glfwSetWindowShouldClose(ffg.FFwindow, 1);
+				}
 				if (ffg.nextCounter > 0) {
 					ffg.getSurgicalActions()->nextHistoryAction();
 					--ffg.nextCounter;
+					if (FacialFlapsGui::scriptedReplay)
+						fprintf(stderr, "action %zu/%zu\n", sa->historyActionsDone(), sa->historySize());
 				}
 				else{
 				// below is from: https://www.intel.com/content/www/us/en/develop/documentation/onetbb-documentation/top/onetbb-developer-guide/design-patterns/gui-thread.html
@@ -130,5 +147,10 @@ int main(int, char**)
 	while (!updateThrow && !sa->physicsDone)
 		;
 	ffg.destroyImguiGlfw();
+	if (FacialFlapsGui::scriptedReplay) {
+		fprintf(stderr, "Scripted replay finished: %zu/%zu actions, exit code %d.\n",
+			sa->historyActionsDone(), sa->historySize(), FacialFlapsGui::scriptedExitCode);
+		return FacialFlapsGui::scriptedExitCode;
+	}
     return 0;
 }
