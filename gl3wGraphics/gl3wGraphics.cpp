@@ -145,6 +145,31 @@ void gl3wGraphics::drawAll()
     glFlush(); // Not really necessary: buffer swapping below implies glFlush()
 }
 
+void gl3wGraphics::drawSceneWithMatrices(const GLfloat* view, const GLfloat* proj)
+{  // OpenXR eye pass: render the scene nodes with an externally supplied camera into whatever
+   // framebuffer/viewport the caller has bound. Saves and restores the desktop camera so
+   // picking/drag code (which reads _glM) is unaffected. No ImGui, no trackball rebuild.
+	GLfloat savedProj[16], savedFR[16];
+	const GLfloat* p = _glM.getProjectionMatrix();
+	const GLfloat* f = _glM.getFrameAndRotationMatrix();
+	for (int i = 0; i < 16; ++i) { savedProj[i] = p[i]; savedFR[i] = f[i]; }
+	_glM.setProjectionMatrixRaw(proj);
+	_glM.setViewMatrixRaw(view);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	GLuint currentProgram = 0;
+	for (auto nit = _nodes.begin(); nit != _nodes.end(); ++nit) {
+		if (!(*nit)->visible)  continue;
+		if ((*nit)->getGlslProgramNumber() != currentProgram) {
+			currentProgram = (*nit)->getGlslProgramNumber();
+			_ls.useGlslProgram(currentProgram);
+		}
+		_ls.setModelMatrix((*nit)->getModelViewMatrix());
+		(*nit)->draw();
+	}
+	_glM.setProjectionMatrixRaw(savedProj);
+	_glM.setViewMatrixRaw(savedFR);
+}
+
 void gl3wGraphics::computeAndSetSceneRadius()
 { // does not change scene center
 	float center[3],radius;

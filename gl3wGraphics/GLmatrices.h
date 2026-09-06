@@ -18,6 +18,10 @@ public:
 	void getViewVector(float (&view)[3]) {view[0]=_mFR[2]; view[1]=_mFR[6]; view[2]=_mFR[10];}		// unscaled
 	const GLfloat* getProjectionMatrix() {return &_mProj[0];}
 	const GLfloat* getFrameAndRotationMatrix() {return &_mFR[0];}
+	// Raw matrix injection for external cameras (OpenXR eye passes). No derivation from
+	// center/rotation - caller is responsible for saving and restoring the desktop camera.
+	void setProjectionMatrixRaw(const GLfloat* m) { for (int i = 0; i < 16; ++i) _mProj[i] = m[i]; }
+	void setViewMatrixRaw(const GLfloat* m) { for (int i = 0; i < 16; ++i) _mFR[i] = m[i]; }
 	void setFrameAndRotation(GLfloat *rotMatrix);
 	void setView(float angleRadians, float screenAspect);
 	void resetPerspective();	// must be called whenever scene changes

@@ -36,6 +36,7 @@ public:
 	void initializeGraphics();
 	std::shared_ptr<sceneNode> loadStaticObjFile(const char *filePath, std::vector<int> &textureIds, bool texturedNotColored = true);
 	void drawAll();	// draws everything in the scene
+	void drawSceneWithMatrices(const GLfloat* view, const GLfloat* proj);  // OpenXR eye pass into the currently bound FBO/viewport
 	void getSceneSphere(GLfloat (&center)[3], GLfloat &radius, bool recomputeAll=true);
 	void frameScene(bool recomputeAll=true);	// sets view data for currently loaded scene
 	void computeAndSetSceneRadius();	// alters scene radius without changing center or zoom
