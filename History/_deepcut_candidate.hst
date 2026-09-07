@@ -1,0 +1,9 @@
+[
+  { "loadSceneFile":"heart.smd" },
+  { "makeDeepCut":[
+    { "deepCutObject":0, "openIn":true, "openOut":true, "pointNumber":3 },
+    { "deepCutPoint":{ "displacement":[0.0,0.0,0.0], "historyTexture":[0.082858,0.352959], "material":2, "postNormal":[-0.501274941964746,-0.670716519237321,0.546683439826389] } },
+    { "deepCutPoint":{ "displacement":[0.0,0.0,0.0], "historyTexture":[0.078034,0.354692], "material":2, "postNormal":[-0.513122695272571,-0.663488106001876,0.544507697640957] } },
+    { "deepCutPoint":{ "displacement":[0.0,0.0,0.0], "historyTexture":[0.055415,0.354637], "material":2, "postNormal":[-0.668330993536868,-0.452459366299707,0.590435606078842] } }
+  ] }
+]
