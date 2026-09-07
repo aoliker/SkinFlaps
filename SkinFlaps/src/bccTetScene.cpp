@@ -175,6 +175,7 @@ bool bccTetScene::loadScene(const char *dataDirectory, const char *sceneFileName
 	if ((oit = scnObj.find("tetrahedralProperties")) != scnObj.end()) {
 		json::Object hullObj = oit->second.ToObject();
 		float lowTetWeight, highTetWeight, TJunctionWeight, strainMin, strainMax, collisionWeight, fixedWeight, periferalWeight, hookWeight, sutureWeight, autoSutureSpacing, selfCollisionWeight;
+		float hookStressLimit = 0.3f;  // force-magnitude cap on a hook; scene may override (bigger = pulls harder)
 		for (suboit = hullObj.begin(); suboit != hullObj.end(); ++suboit) {
 			if (suboit->first == "minStrain")
 				strainMin = suboit->second.ToFloat();
@@ -198,6 +199,8 @@ bool bccTetScene::loadScene(const char *dataDirectory, const char *sceneFileName
 				sutureWeight = suboit->second.ToFloat();
 			else if (suboit->first == "hookWeight")
 				hookWeight = suboit->second.ToFloat();
+			else if (suboit->first == "hookStressLimit")
+				hookStressLimit = suboit->second.ToFloat();
 			else if (suboit->first == "autoSutureSpacing")
 				autoSutureSpacing = suboit->second.ToFloat();
 			else if (suboit->first == "maxDimMegatetSubdivs")
@@ -208,7 +211,7 @@ bool bccTetScene::loadScene(const char *dataDirectory, const char *sceneFileName
 				_surgAct->sendUserMessage("Unknown tetrahedral property in scene file-", "File Error Message");
 		}
 		_ptp.setTetProperties(lowTetWeight, highTetWeight, TJunctionWeight, strainMin, strainMax, collisionWeight, selfCollisionWeight, fixedWeight, periferalWeight);
-		_ptp.setHookSutureWeights(hookWeight, sutureWeight, 0.3f);
+		_ptp.setHookSutureWeights(hookWeight, sutureWeight, hookStressLimit);
 		_surgAct->getSutures()->setAutoSutureSpacing(autoSutureSpacing);
 	}
 	struct tetSubset {
